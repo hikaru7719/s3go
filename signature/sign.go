@@ -2,6 +2,7 @@ package signature
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -93,4 +94,25 @@ func stringToSign(ISODate, AWSRegion, hash string) string {
 	date := ISODate[:8]
 	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request\n", string(date), AWSRegion)
 	return algorithm + dateTime + credentialScope + hash
+}
+
+func makeHMAC(key, msg []byte) []byte {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(msg)
+	return mac.Sum(nil)
+}
+
+func getSignatureKey(secret, date, region, service string) []byte {
+	kSecret := secret
+	kDate := makeHMAC([]byte("AWS4"+kSecret), []byte(date))
+	kRegion := makeHMAC(kDate, []byte(region))
+	kService := makeHMAC(kRegion, []byte(service))
+	kSigning := makeHMAC(kService, []byte("aws4_request"))
+	return kSigning
+}
+
+func getSignature(secret, date, region, service, stringToSign string) string {
+	signatureKey := getSignatureKey(secret, date, region, service)
+	signature := makeHMAC(signatureKey, []byte(stringToSign))
+	return hex.EncodeToString(signature)
 }

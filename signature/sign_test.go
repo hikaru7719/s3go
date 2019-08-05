@@ -1,6 +1,7 @@
 package signature
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,8 +26,10 @@ func TestSortMapKey(t *testing.T) {
 
 	for n, tc := range cases {
 		tc := tc
-		actualSlice := sortMapKey(tc.testMap)
-		assert.Equal(t, tc.expectSlice, actualSlice, n)
+		t.Run(n, func(t *testing.T) {
+			actualSlice := sortMapKey(tc.testMap)
+			assert.Equal(t, tc.expectSlice, actualSlice, n)
+		})
 	}
 }
 func TestNormraizeHeader(t *testing.T) {
@@ -64,8 +67,10 @@ x-amz-date:20150830T123600Z
 
 	for n, tc := range cases {
 		tc := tc
-		actualString := normarizeHeader(tc.testHeader)
-		assert.Equal(t, tc.expectString, actualString, n)
+		t.Run(n, func(t *testing.T) {
+			actualString := normarizeHeader(tc.testHeader)
+			assert.Equal(t, tc.expectString, actualString, n)
+		})
 	}
 }
 
@@ -82,8 +87,10 @@ func TestLinkSlice(t *testing.T) {
 
 	for n, tc := range cases {
 		tc := tc
-		actualString := linkSlice(tc.testSlice)
-		assert.Equal(t, tc.expectString, actualString, n)
+		t.Run(n, func(t *testing.T) {
+			actualString := linkSlice(tc.testSlice)
+			assert.Equal(t, tc.expectString, actualString, n)
+		})
 	}
 }
 
@@ -112,8 +119,10 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
 
 	for n, tc := range cases {
 		tc := tc
-		actualHash := hashSHA256(tc.testPayload)
-		assert.Equal(t, tc.expectHash, actualHash, n)
+		t.Run(n, func(t *testing.T) {
+			actualHash := hashSHA256(tc.testPayload)
+			assert.Equal(t, tc.expectHash, actualHash, n)
+		})
 	}
 }
 
@@ -148,8 +157,11 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
 
 	for n, tc := range cases {
 		tc := tc
-		actualString := canonicalRequest(tc.testMethod, tc.testURL, tc.testPayload, tc.testHeader)
-		assert.Equal(t, tc.expectString, actualString, n)
+		t.Run(n, func(t *testing.T) {
+			actualString := canonicalRequest(tc.testMethod, tc.testURL, tc.testPayload, tc.testHeader)
+			assert.Equal(t, tc.expectString, actualString)
+		})
+
 	}
 }
 func TestStringToSign(t *testing.T) {
@@ -172,7 +184,66 @@ f536975d06c0309214f805bb90ccff089219ecd68b2577efef23edd43b7e1a59`,
 
 	for n, tc := range cases {
 		tc := tc
-		actualSign := stringToSign(tc.testISODate, tc.testRegion, tc.testHash)
-		assert.Equal(t, actualSign, tc.expectSign, n)
+		t.Run(n, func(t *testing.T) {
+			actualSign := stringToSign(tc.testISODate, tc.testRegion, tc.testHash)
+			assert.Equal(t, actualSign, tc.expectSign, n)
+		})
+	}
+}
+
+func TestGetSignatureKey(t *testing.T) {
+	cases := map[string]struct {
+		testSecret         string
+		testDate           string
+		testRegion         string
+		testService        string
+		expectSignatureKey string
+	}{
+		"test get signature key": {
+			testSecret:         "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+			testDate:           "20150830",
+			testRegion:         "us-east-1",
+			testService:        "iam",
+			expectSignatureKey: "c4afb1cc5771d871763a393e44b703571b55cc28424d1a5e86da6ed3c154a4b9",
+		},
+	}
+
+	for n, tc := range cases {
+		tc := tc
+		t.Run(n, func(t *testing.T) {
+			actualSignatureKey := getSignatureKey(tc.testSecret, tc.testDate, tc.testRegion, tc.testService)
+			assert.Equal(t, tc.expectSignatureKey, hex.EncodeToString(actualSignatureKey))
+		})
+	}
+}
+
+func TestGetSignature(t *testing.T) {
+	cases := map[string]struct {
+		testSecret       string
+		testDate         string
+		testRegion       string
+		testService      string
+		testStringToSign string
+		expectSignature  string
+	}{
+		"test get signature key": {
+			testSecret:  "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+			testDate:    "20150830",
+			testRegion:  "us-east-1",
+			testService: "iam",
+			testStringToSign: `AWS4-HMAC-SHA256
+20150830T123600Z
+20150830/us-east-1/iam/aws4_request
+f536975d06c0309214f805bb90ccff089219ecd68b2577efef23edd43b7e1a59`,
+			expectSignature: "5d672d79c15b13162d9279b0855cfba6789a8edb4c82c400e06b5924a6f2b5d7",
+		},
+	}
+
+	for n, tc := range cases {
+		tc := tc
+		t.Run(n, func(t *testing.T) {
+			actualSignature := getSignature(tc.testSecret, tc.testDate, tc.testRegion, tc.testService, tc.testStringToSign)
+			assert.Equal(t, tc.expectSignature, actualSignature)
+		})
 	}
 }
