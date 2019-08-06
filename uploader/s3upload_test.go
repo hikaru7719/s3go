@@ -1,8 +1,13 @@
 package uploader
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hikaru7719/s3go/signature"
+)
 
 func TestInitialMultipartUpload(t *testing.T) {
-	upload, _ := New("s3go-cli-test", "test")
+	sig := signature.New()
+	upload, _ := New("s3go-cli-test", "test", sig)
 	upload.InitialMultipartUpload()
 }

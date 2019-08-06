@@ -10,6 +10,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/hikaru7719/s3go/config"
+	"github.com/hikaru7719/s3go/time"
 )
 
 var (
@@ -133,13 +136,22 @@ type Timer interface {
 	Date() string
 }
 
-func Authorization(method, URL, payload string, header map[string]string, config AWSConfig, timer Timer) string {
+func New() *Signature {
+	return &Signature{timer: time.Default, config: config.Default}
+}
+
+type Signature struct {
+	timer  Timer
+	config AWSConfig
+}
+
+func (s *Signature) Authorization(method, URL, payload string, header map[string]string) string {
 	request := canonicalRequest(method, URL, payload, header)
 	hashedRequest := hashSHA256(request)
-	strToSign := stringToSign(timer.Now(), config.AWSRegion(), hashedRequest)
-	sig := signature(config.AWSSecretAccessKey(), timer.Date(), config.AWSRegion(), "s3", strToSign)
+	strToSign := stringToSign(s.timer.Now(), s.config.AWSRegion(), hashedRequest)
+	sig := signature(s.config.AWSSecretAccessKey(), s.timer.Date(), s.config.AWSRegion(), "s3", strToSign)
 	sortKeySlice := sortMapKey(header)
 	signedHeaders := fmt.Sprintf("%s", linkSlice(sortKeySlice))
-	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", timer.Date(), config.AWSRegion())
-	return authorization(config.AWSAccessKeyID(), credentialScope, signedHeaders, sig)
+	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", s.timer.Date(), s.config.AWSRegion())
+	return authorization(s.config.AWSAccessKeyID(), credentialScope, signedHeaders, sig)
 }
