@@ -7,9 +7,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 var (
@@ -115,4 +117,25 @@ func getSignature(secret, date, region, service, stringToSign string) string {
 	signatureKey := getSignatureKey(secret, date, region, service)
 	signature := makeHMAC(signatureKey, []byte(stringToSign))
 	return hex.EncodeToString(signature)
+}
+
+func getAuthorization(secretAccessKeyId, credentialScope, signedHeaders, signature string) string {
+	authorization := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", secretAccessKeyId, credentialScope, signedHeaders, signature)
+	return authorization
+}
+
+func Authorization(method, URL, payload string, header map[string]string) string {
+	request := canonicalRequest(method, URL, payload, header)
+	hashedRequest := hashSHA256(request)
+	strToSign := stringToSign(time.Now().Format("20060102'T'150405'Z'"), "ap-northeast-1", hashedRequest)
+	secret := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	signature := getSignature(secret, time.Now().Format("20060102"), "ap-northeast-1", "s3", strToSign)
+	accessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
+
+	sortKeySlice := sortMapKey(header)
+	signedHeaders := fmt.Sprintf("%s", linkSlice(sortKeySlice))
+
+	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", time.Now().Format("20060102"), "ap-northeast-1")
+
+	return getAuthorization(accessKeyId, credentialScope, signedHeaders, signature)
 }
