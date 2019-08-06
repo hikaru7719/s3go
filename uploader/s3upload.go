@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 
+	"github.com/hikaru7719/s3go/config"
 	"github.com/hikaru7719/s3go/signature"
+	"github.com/hikaru7719/s3go/time"
 )
 
 var (
@@ -23,7 +24,7 @@ func New(bucketName, fileName string) (*S3Upload, error) {
 type S3Upload struct {
 	bucketName string
 	objectName string
-	url        string
+	uploadId   string
 }
 
 func (s *S3Upload) InitialMultipartUpload() error {
@@ -31,18 +32,15 @@ func (s *S3Upload) InitialMultipartUpload() error {
 	host := fmt.Sprintf("%s.%s", s.bucketName, BASE_HOST)
 	url := fmt.Sprintf("https://%s/%s?uploads", host, s.objectName)
 	req, err := http.NewRequest("POST", url, nil)
-	req.Header.Add("X-Amz-Date", time.Now().Format("20060102'T'150405'Z'"))
+	req.Header.Add("x-amz-date", time.Default.Now())
 	req.Header.Add("Host", host)
+	req.Header.Add("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	headerMap := s.convertToMap(req.Header)
-	for key, value := range headerMap {
-		fmt.Println(key, ":", value)
-	}
-
-	authorization := signature.Authorization("POST", url, "", headerMap)
-	fmt.Println(authorization)
+	authorization := signature.Authorization("POST", url, "", headerMap, config.Default, time.Default)
 	req.Header.Add("Authorization", authorization)
 	res, err := client.Do(req)
 	byteBody, err := ioutil.ReadAll(res.Body)
+	defer res.Body.Close()
 	fmt.Println(res.StatusCode, string(byteBody))
 	return err
 }

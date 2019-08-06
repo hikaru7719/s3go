@@ -7,11 +7,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 )
 
 var (
@@ -104,7 +102,7 @@ func makeHMAC(key, msg []byte) []byte {
 	return mac.Sum(nil)
 }
 
-func getSignatureKey(secret, date, region, service string) []byte {
+func signatureKey(secret, date, region, service string) []byte {
 	kSecret := secret
 	kDate := makeHMAC([]byte("AWS4"+kSecret), []byte(date))
 	kRegion := makeHMAC(kDate, []byte(region))
@@ -113,29 +111,35 @@ func getSignatureKey(secret, date, region, service string) []byte {
 	return kSigning
 }
 
-func getSignature(secret, date, region, service, stringToSign string) string {
-	signatureKey := getSignatureKey(secret, date, region, service)
-	signature := makeHMAC(signatureKey, []byte(stringToSign))
-	return hex.EncodeToString(signature)
+func signature(secret, date, region, service, stringToSign string) string {
+	sigKey := signatureKey(secret, date, region, service)
+	sig := makeHMAC(sigKey, []byte(stringToSign))
+	return hex.EncodeToString(sig)
 }
 
-func getAuthorization(secretAccessKeyId, credentialScope, signedHeaders, signature string) string {
+func authorization(secretAccessKeyId, credentialScope, signedHeaders, signature string) string {
 	authorization := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", secretAccessKeyId, credentialScope, signedHeaders, signature)
 	return authorization
 }
 
-func Authorization(method, URL, payload string, header map[string]string) string {
+type AWSConfig interface {
+	AWSAccessKeyID() string
+	AWSSecretAccessKey() string
+	AWSRegion() string
+}
+
+type Timer interface {
+	Now() string
+	Date() string
+}
+
+func Authorization(method, URL, payload string, header map[string]string, config AWSConfig, timer Timer) string {
 	request := canonicalRequest(method, URL, payload, header)
 	hashedRequest := hashSHA256(request)
-	strToSign := stringToSign(time.Now().Format("20060102'T'150405'Z'"), "ap-northeast-1", hashedRequest)
-	secret := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	signature := getSignature(secret, time.Now().Format("20060102"), "ap-northeast-1", "s3", strToSign)
-	accessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
-
+	strToSign := stringToSign(timer.Now(), config.AWSRegion(), hashedRequest)
+	sig := signature(config.AWSSecretAccessKey(), timer.Date(), config.AWSRegion(), "s3", strToSign)
 	sortKeySlice := sortMapKey(header)
 	signedHeaders := fmt.Sprintf("%s", linkSlice(sortKeySlice))
-
-	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", time.Now().Format("20060102"), "ap-northeast-1")
-
-	return getAuthorization(accessKeyId, credentialScope, signedHeaders, signature)
+	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", timer.Date(), config.AWSRegion())
+	return authorization(config.AWSAccessKeyID(), credentialScope, signedHeaders, sig)
 }

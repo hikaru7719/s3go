@@ -211,7 +211,7 @@ func TestGetSignatureKey(t *testing.T) {
 	for n, tc := range cases {
 		tc := tc
 		t.Run(n, func(t *testing.T) {
-			actualSignatureKey := getSignatureKey(tc.testSecret, tc.testDate, tc.testRegion, tc.testService)
+			actualSignatureKey := signatureKey(tc.testSecret, tc.testDate, tc.testRegion, tc.testService)
 			assert.Equal(t, tc.expectSignatureKey, hex.EncodeToString(actualSignatureKey))
 		})
 	}
@@ -242,7 +242,7 @@ f536975d06c0309214f805bb90ccff089219ecd68b2577efef23edd43b7e1a59`,
 	for n, tc := range cases {
 		tc := tc
 		t.Run(n, func(t *testing.T) {
-			actualSignature := getSignature(tc.testSecret, tc.testDate, tc.testRegion, tc.testService, tc.testStringToSign)
+			actualSignature := signature(tc.testSecret, tc.testDate, tc.testRegion, tc.testService, tc.testStringToSign)
 			assert.Equal(t, tc.expectSignature, actualSignature)
 		})
 	}
@@ -268,7 +268,7 @@ func TestGetAuthrization(t *testing.T) {
 	for n, tc := range cases {
 		tc := tc
 		t.Run(n, func(t *testing.T) {
-			actualAuthorization := getAuthorization(tc.testSecretAccessKey, tc.testCredentialScope, tc.testSignedHeaders, tc.testSignature)
+			actualAuthorization := authorization(tc.testSecretAccessKey, tc.testCredentialScope, tc.testSignedHeaders, tc.testSignature)
 			assert.Equal(t, tc.expectAuthorization, actualAuthorization)
 		})
 	}
