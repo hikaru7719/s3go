@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -44,9 +45,9 @@ type S3Upload struct {
 	objectName string
 	uploadID   string
 	signature  Signature
-	file       io.Reader
-	// This map link etag and uploadId from response putting object.
+	file       io.ReadCloser
 	etagMapper map[int]string
+	fileSlice  [][]byte
 }
 
 // InitialMultipartUpload is first request to do maltipart upload
@@ -90,8 +91,15 @@ func (s *S3Upload) convertToMap(header http.Header) map[string]string {
 	return newMap
 }
 
-// PutMaltiPartObject is request to upload object
-func (s *S3Upload) PutMaltiPartObject(partNumber int) error {
+// PutObject uploads file divided some chunk
+func (s *S3Upload) PutObject() {
+	for n := range s.fileSlice {
+		s.PutMultiPartObject(n + 1)
+	}
+}
+
+// PutMultiPartObject is request to upload object
+func (s *S3Upload) PutMultiPartObject(partNumber int) error {
 	client := &http.Client{}
 	req, err := s.newUploaderRequest(partNumber)
 	res, err := client.Do(req)
@@ -104,9 +112,31 @@ func (s *S3Upload) PutMaltiPartObject(partNumber int) error {
 	return err
 }
 
+func (s *S3Upload) devideFile() error {
+	byteSlice := make([][]byte, 0, 10)
+	for {
+		bytes := make([]byte, 1024*1024*5)
+		size, err := s.file.Read(bytes)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+
+		}
+		if size != 1024*1024*5 {
+			byteSlice = append(byteSlice, bytes[:size])
+			continue
+		}
+		byteSlice = append(byteSlice, bytes)
+	}
+	s.fileSlice = byteSlice
+	return nil
+}
+
 func (s *S3Upload) newUploaderRequest(partNumber int) (*http.Request, error) {
 	url := fmt.Sprintf("https://%s/%s?partNumber=%d&uploadId=%s", s.host, s.objectName, partNumber, s.uploadID)
-	byteBody, _ := ioutil.ReadAll(s.file)
+	byteBody := s.fileSlice[partNumber-1]
 	buffer := bytes.NewBuffer(byteBody)
 	req, err := http.NewRequest("PUT", url, buffer)
 	req.Header.Add("x-amz-date", time.Default.Now())
@@ -146,7 +176,7 @@ func (s *S3Upload) CompleteUploadObject() error {
 // CompleteMultipartUpload struct is to be base XML For Reuqest
 type CompleteMultipartUpload struct {
 	XMLName xml.Name `xml:"CompleteMultipartUpload"`
-	Part    []*Part
+	Part    []Part
 }
 
 // Part is included in the CompleteMultipartUpload XML.
@@ -156,12 +186,20 @@ type Part struct {
 	ETag       string   `xml:"ETag"`
 }
 
+// Parts implements Sort Interface
+type Parts []Part
+
+func (p Parts) Len() int           { return len(p) }
+func (p Parts) Less(i, j int) bool { return p[i].PartNumber < p[j].PartNumber }
+func (p Parts) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
 func (s *S3Upload) generateXML() (string, error) {
-	parts := make([]*Part, 0, 10)
+	parts := make([]Part, 0, 10)
 	for key, value := range s.etagMapper {
-		part := &Part{PartNumber: key, ETag: value}
+		part := Part{PartNumber: key, ETag: value}
 		parts = append(parts, part)
 	}
+	sort.Sort(Parts(parts))
 	comleteMultipartUpload := CompleteMultipartUpload{Part: parts}
 	bytes, err := xml.MarshalIndent(comleteMultipartUpload, "", "  ")
 	if err != nil {

@@ -2,6 +2,7 @@ package uploader
 
 import (
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/hikaru7719/s3go/signature"
@@ -46,10 +47,11 @@ func (m *mockAuth) Authorization(method, URL, payload string, header map[string]
 func TestPutMultipartObject(t *testing.T) {
 	sig := signature.New()
 	upload, _ := New("s3go-cli-test", "test", sig)
-	file, _ := os.Open("earth.jpg")
+	file, _ := os.Open("testdata/earth.jpg")
 	upload.file = file
 	upload.InitialMultipartUpload()
-	upload.PutMaltiPartObject(1)
+	upload.devideFile()
+	upload.PutObject()
 	upload.CompleteUploadObject()
 }
 
@@ -60,10 +62,34 @@ func TestNewUploadRequest(t *testing.T) {
 		objectName: "testObject",
 		signature:  &mockAuth{},
 	}
-	file, _ := os.Open("earth.jpg")
+	file, _ := os.Open("testdata/earth.jpg")
 	upload.file = file
 	req, _ := upload.newUploaderRequest(1)
 	assert.Equal(t, "17224423", req.Header.Get("content-length"))
+}
+
+func TestNewCompleteRequest(t *testing.T) {
+	etagMap := make(map[int]string)
+	etagMap[1] = "testetag1"
+	upload := &S3Upload{
+		host:       "testhost",
+		bucketName: "testbucket",
+		objectName: "testObject",
+		signature:  &mockAuth{},
+		etagMapper: etagMap,
+	}
+	req, _ := upload.newCompleteRequest()
+	expectXMLString := `<CompleteMultipartUpload>
+  <Part>
+    <PartNumber>1</PartNumber>
+    <ETag>testetag1</ETag>
+  </Part>
+</CompleteMultipartUpload>`
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "testhost", req.Header.Get("Host"))
+	assert.Equal(t, hashSHA256(expectXMLString), req.Header.Get("x-amz-content-sha256"))
+	assert.Equal(t, "testAuthorization", req.Header.Get("Authorization"))
+	assert.Equal(t, strconv.Itoa(len(expectXMLString)), req.Header.Get("Content-Length"))
 }
 
 func TestGenerateXML(t *testing.T) {
@@ -88,4 +114,12 @@ func TestGenerateXML(t *testing.T) {
 	upload := &S3Upload{etagMapper: etagMap}
 	actualString, _ := upload.generateXML()
 	assert.Equal(t, expectString, actualString)
+}
+
+func TestDevideFile(t *testing.T) {
+	upload := &S3Upload{}
+	file, _ := os.Open("testdata/earth.jpg")
+	upload.file = file
+	upload.devideFile()
+	assert.Equal(t, 4, len(upload.fileSlice))
 }
