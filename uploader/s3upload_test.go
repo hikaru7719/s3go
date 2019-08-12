@@ -50,7 +50,7 @@ func TestPutMultipartObject(t *testing.T) {
 	upload.file = file
 	upload.InitialMultipartUpload()
 	upload.PutMaltiPartObject(1)
-	upload.newCompleteRequest()
+	upload.CompleteUploadObject()
 }
 
 func TestNewUploadRequest(t *testing.T) {
@@ -63,7 +63,7 @@ func TestNewUploadRequest(t *testing.T) {
 	file, _ := os.Open("earth.jpg")
 	upload.file = file
 	req, _ := upload.newUploaderRequest(1)
-	assert.Equal(t, "hoge", req.Header.Get("content-length"))
+	assert.Equal(t, "17224423", req.Header.Get("content-length"))
 }
 
 func TestGenerateXML(t *testing.T) {

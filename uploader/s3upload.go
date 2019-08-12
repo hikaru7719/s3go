@@ -178,7 +178,7 @@ func (s *S3Upload) newCompleteRequest() (*http.Request, error) {
 	}
 	reader := strings.NewReader(xmlString)
 	req, err := http.NewRequest("POST", url, reader)
-	req.Header.Add("x-amx-date", time.Default.Now())
+	req.Header.Add("x-amz-date", time.Default.Now())
 	req.Header.Add("Host", s.host)
 	req.Header.Add("x-amz-content-sha256", hashSHA256(xmlString))
 	req.Header.Add("Content-Length", strconv.Itoa(len(xmlString)))
