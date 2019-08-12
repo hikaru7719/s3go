@@ -49,7 +49,8 @@ func TestPutMultipartObject(t *testing.T) {
 	file, _ := os.Open("earth.jpg")
 	upload.file = file
 	upload.InitialMultipartUpload()
-	upload.PutMaltiPartObject()
+	upload.PutMaltiPartObject(1)
+	upload.newCompleteRequest()
 }
 
 func TestNewUploadRequest(t *testing.T) {
@@ -61,6 +62,30 @@ func TestNewUploadRequest(t *testing.T) {
 	}
 	file, _ := os.Open("earth.jpg")
 	upload.file = file
-	req, _ := upload.newUploaderRequest()
+	req, _ := upload.newUploaderRequest(1)
 	assert.Equal(t, "hoge", req.Header.Get("content-length"))
+}
+
+func TestGenerateXML(t *testing.T) {
+	etagMap := make(map[int]string)
+	etagMap[1] = "testetag1"
+	etagMap[2] = "testetag2"
+	etagMap[3] = "testetag3"
+	expectString := `<CompleteMultipartUpload>
+  <Part>
+    <PartNumber>1</PartNumber>
+    <ETag>testetag1</ETag>
+  </Part>
+  <Part>
+    <PartNumber>2</PartNumber>
+    <ETag>testetag2</ETag>
+  </Part>
+  <Part>
+    <PartNumber>3</PartNumber>
+    <ETag>testetag3</ETag>
+  </Part>
+</CompleteMultipartUpload>`
+	upload := &S3Upload{etagMapper: etagMap}
+	actualString, _ := upload.generateXML()
+	assert.Equal(t, expectString, actualString)
 }
