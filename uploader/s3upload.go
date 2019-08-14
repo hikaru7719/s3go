@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,12 +25,17 @@ var (
 func New(bucketName, fileName string, signature Signature) (*S3Upload, error) {
 	host := fmt.Sprintf("%s.%s", bucketName, baseHost)
 	etagMapper := make(map[int]string, 20)
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
 	return &S3Upload{
 		host:       host,
 		bucketName: bucketName,
 		objectName: fileName,
 		signature:  signature,
 		etagMapper: etagMapper,
+		file:       file,
 	}, nil
 }
 
@@ -48,6 +54,25 @@ type S3Upload struct {
 	file       io.ReadCloser
 	etagMapper map[int]string
 	fileSlice  [][]byte
+}
+
+// Run runs to upload file
+func (s *S3Upload) Run() error {
+	err := s.InitialMultipartUpload()
+	if err != nil {
+		return err
+	}
+	err = s.devideFile()
+	if err != nil {
+		return err
+	}
+	s.PutObject()
+	err = s.CompleteUploadObject()
+	if err != nil {
+		return err
+	}
+	defer s.file.Close()
+	return nil
 }
 
 // InitialMultipartUpload is first request to do maltipart upload
