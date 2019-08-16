@@ -30,6 +30,7 @@ func New(bucketName, fileName string, signature Signature) (*S3Upload, error) {
 	if err != nil {
 		return nil, err
 	}
+	mutex := new(sync.Mutex)
 	return &S3Upload{
 		host:       host,
 		bucketName: bucketName,
@@ -37,6 +38,7 @@ func New(bucketName, fileName string, signature Signature) (*S3Upload, error) {
 		signature:  signature,
 		etagMapper: etagMapper,
 		file:       file,
+		mutex:      mutex,
 	}, nil
 }
 
@@ -55,7 +57,7 @@ type S3Upload struct {
 	file       io.ReadCloser
 	etagMapper map[int]string
 	fileSlice  [][]byte
-	mutex      sync.Mutex
+	mutex      *sync.Mutex
 }
 
 // Run runs to upload file
@@ -69,6 +71,7 @@ func (s *S3Upload) Run() error {
 		return err
 	}
 	s.PutObject()
+	fmt.Println(s.etagMapper)
 	err = s.CompleteUploadObject()
 	if err != nil {
 		return err
@@ -82,10 +85,13 @@ func (s *S3Upload) InitialMultipartUpload() error {
 	client := &http.Client{}
 	req, err := s.newInitialRequest()
 	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
 	byteBody, err := ioutil.ReadAll(res.Body)
 	defer res.Body.Close()
 	s.xmlMapping(byteBody)
-	return err
+	return nil
 }
 
 func (s *S3Upload) newInitialRequest() (*http.Request, error) {
@@ -123,25 +129,36 @@ func (s *S3Upload) PutObject() {
 	var wg sync.WaitGroup
 	done := make(chan interface{})
 	errChan := make(chan error)
+
+	go func() {
+		for err := range errChan {
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}()
+
 	for n := range s.fileSlice {
 		wg.Add(1)
 		go func(n int) {
+			fmt.Println("start", n)
 			s.PutMultiPartObject(n+1, done, errChan)
+			fmt.Println("finish", n)
 			defer wg.Done()
 		}(n)
 	}
 
-	for err := range errChan {
-		fmt.Println(err)
-	}
 	wg.Wait()
+	close(errChan)
+	close(done)
 }
 
 // PutMultiPartObject is request to upload object
-func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, errChan chan<- error) error {
+func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, errChan chan<- error) {
+	fmt.Println("start upload part", partNumber)
 	select {
 	case <-done:
-		return nil
+		return
 	default:
 	}
 
@@ -149,15 +166,20 @@ func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, e
 	req, err := s.newUploaderRequest(partNumber)
 	res, err := client.Do(req)
 	if err != nil {
+		fmt.Println("occerd err sending channel", partNumber)
 		errChan <- err
-		return err
+		fmt.Println("finish sending channel", partNumber)
+
 	}
 	defer res.Body.Close()
 	etag := res.Header.Get("ETag")
+	s.mutexMapInsert(partNumber, etag)
+}
+
+func (s *S3Upload) mutexMapInsert(partNumber int, etag string) {
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	s.etagMapper[partNumber] = etag
-	return nil
+	defer s.mutex.Unlock()
 }
 
 func (s *S3Upload) devideFile() error {

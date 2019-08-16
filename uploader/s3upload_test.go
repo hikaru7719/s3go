@@ -3,6 +3,7 @@ package uploader
 import (
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/hikaru7719/s3go/signature"
@@ -11,7 +12,7 @@ import (
 
 func TestInitialMultipartUpload(t *testing.T) {
 	sig := signature.New()
-	upload, _ := New("s3go-cli-test", "test", sig)
+	upload, _ := New("s3go-cli-test", "testdata/earth.jpg", sig)
 	upload.InitialMultipartUpload()
 }
 
@@ -44,16 +45,14 @@ func (m *mockAuth) Authorization(method, URL, payload string, header map[string]
 	return "testAuthorization"
 }
 
-func TestPutMultipartObject(t *testing.T) {
-	sig := signature.New()
-	upload, _ := New("s3go-cli-test", "test", sig)
-	file, _ := os.Open("testdata/earth.jpg")
-	upload.file = file
-	upload.InitialMultipartUpload()
-	upload.devideFile()
-	upload.PutObject()
-	upload.CompleteUploadObject()
-}
+// func TestPutMultipartObject(t *testing.T) {
+// 	sig := signature.New()
+// 	upload, _ := New("s3go-cli-test", "testdata/earth.jpg", sig)
+// 	upload.InitialMultipartUpload()
+// 	upload.devideFile()
+// 	upload.PutObject()
+// 	upload.CompleteUploadObject()
+// }
 
 func TestNewUploadRequest(t *testing.T) {
 	upload := &S3Upload{
@@ -62,10 +61,11 @@ func TestNewUploadRequest(t *testing.T) {
 		objectName: "testObject",
 		signature:  &mockAuth{},
 	}
-	file, _ := os.Open("testdata/earth.jpg")
-	upload.file = file
+	bytes := []byte("hoge")
+	fileSlice := [][]byte{bytes}
+	upload.fileSlice = fileSlice
 	req, _ := upload.newUploaderRequest(1)
-	assert.Equal(t, "17224423", req.Header.Get("content-length"))
+	assert.Equal(t, "4", req.Header.Get("content-length"))
 }
 
 func TestNewCompleteRequest(t *testing.T) {
@@ -122,4 +122,28 @@ func TestDevideFile(t *testing.T) {
 	upload.file = file
 	upload.devideFile()
 	assert.Equal(t, 4, len(upload.fileSlice))
+}
+
+func TestMutexMapInsert(t *testing.T) {
+	etagMap := make(map[int]string)
+	mutex := new(sync.Mutex)
+	uploader := &S3Upload{
+		etagMapper: etagMap,
+		mutex:      mutex,
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		uploader.mutexMapInsert(1, "hoge")
+		wg.Done()
+	}()
+	go func() {
+		uploader.mutexMapInsert(2, "fuga")
+		wg.Done()
+	}()
+	wg.Wait()
+
+	assert.Equal(t, "hoge", uploader.etagMapper[1])
+	assert.Equal(t, "fuga", uploader.etagMapper[2])
 }
