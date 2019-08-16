@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/hikaru7719/s3go/time"
 )
@@ -54,6 +55,7 @@ type S3Upload struct {
 	file       io.ReadCloser
 	etagMapper map[int]string
 	fileSlice  [][]byte
+	mutex      sync.Mutex
 }
 
 // Run runs to upload file
@@ -118,23 +120,44 @@ func (s *S3Upload) convertToMap(header http.Header) map[string]string {
 
 // PutObject uploads file divided some chunk
 func (s *S3Upload) PutObject() {
+	var wg sync.WaitGroup
+	done := make(chan interface{})
+	errChan := make(chan error)
 	for n := range s.fileSlice {
-		s.PutMultiPartObject(n + 1)
+		wg.Add(1)
+		go func(n int) {
+			s.PutMultiPartObject(n+1, done, errChan)
+			defer wg.Done()
+		}(n)
 	}
+
+	for err := range errChan {
+		fmt.Println(err)
+	}
+	wg.Wait()
 }
 
 // PutMultiPartObject is request to upload object
-func (s *S3Upload) PutMultiPartObject(partNumber int) error {
+func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, errChan chan<- error) error {
+	select {
+	case <-done:
+		return nil
+	default:
+	}
+
 	client := &http.Client{}
 	req, err := s.newUploaderRequest(partNumber)
 	res, err := client.Do(req)
 	if err != nil {
+		errChan <- err
 		return err
 	}
 	defer res.Body.Close()
 	etag := res.Header.Get("ETag")
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.etagMapper[partNumber] = etag
-	return err
+	return nil
 }
 
 func (s *S3Upload) devideFile() error {
