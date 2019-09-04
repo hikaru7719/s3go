@@ -12,7 +12,7 @@ import (
 
 func TestInitialMultipartUpload(t *testing.T) {
 	sig := signature.New()
-	upload, _ := New("s3go-cli-test", "testdata/earth.jpg", sig)
+	upload, _ := New("s3go-cli-test", "../testdata/earth.jpg", sig)
 	upload.InitialMultipartUpload()
 }
 
@@ -44,15 +44,6 @@ type mockAuth struct{}
 func (m *mockAuth) Authorization(method, URL, payload string, header map[string]string) string {
 	return "testAuthorization"
 }
-
-// func TestPutMultipartObject(t *testing.T) {
-// 	sig := signature.New()
-// 	upload, _ := New("s3go-cli-test", "testdata/earth.jpg", sig)
-// 	upload.InitialMultipartUpload()
-// 	upload.devideFile()
-// 	upload.PutObject()
-// 	upload.CompleteUploadObject()
-// }
 
 func TestNewUploadRequest(t *testing.T) {
 	upload := &S3Upload{
@@ -118,7 +109,7 @@ func TestGenerateXML(t *testing.T) {
 
 func TestDevideFile(t *testing.T) {
 	upload := &S3Upload{}
-	file, _ := os.Open("testdata/earth.jpg")
+	file, _ := os.Open("../testdata/earth.jpg")
 	upload.file = file
 	upload.devideFile()
 	assert.Equal(t, 4, len(upload.fileSlice))
