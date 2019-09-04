@@ -18,7 +18,7 @@ jobs:
         run: go mod download
 
       - name: go get lint command
-        run: go get -u golang.org/x/lint/golint
+        run: go get -u golang.org/x/lint/golint & go install $GOPATH/golang.org/x/lint/golint
 
       - name: Go lint
         run: golint -set_exit_status ./...
