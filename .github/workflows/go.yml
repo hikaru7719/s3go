@@ -21,7 +21,7 @@ jobs:
         run: go get -u golang.org/x/lint/golint
 
       - name: buid golint
-        run: go install $GOPATH/src/golang.org/x/lint/golint
+        run: go install $GOPATH/pkg/mod/golang.org/x/lint/golint
 
       - name: Go lint
         run: golint -set_exit_status ./...
