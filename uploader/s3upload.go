@@ -15,7 +15,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/hikaru7719/s3go/time"
+	"golang.org/x/xerrors"
 )
 
 var (
@@ -70,7 +72,10 @@ func (s *S3Upload) Run() error {
 	if err != nil {
 		return err
 	}
-	s.PutObject()
+	err = s.PutObject()
+	if err != nil {
+		return err
+	}
 	err = s.CompleteUploadObject()
 	if err != nil {
 		return err
@@ -124,15 +129,16 @@ func (s *S3Upload) convertToMap(header http.Header) map[string]string {
 }
 
 // PutObject uploads file divided some chunk
-func (s *S3Upload) PutObject() {
+func (s *S3Upload) PutObject() error {
 	var wg sync.WaitGroup
 	done := make(chan interface{})
 	errChan := make(chan error)
 
+	var errors error
 	go func() {
 		for err := range errChan {
 			if err != nil {
-				fmt.Println(err)
+				errors = multierror.Append(errors, err)
 			}
 		}
 	}()
@@ -148,11 +154,11 @@ func (s *S3Upload) PutObject() {
 	wg.Wait()
 	close(errChan)
 	close(done)
+	return errors
 }
 
 // PutMultiPartObject is request to upload object
 func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, errChan chan<- error) {
-	fmt.Println("start upload part", partNumber)
 	select {
 	case <-done:
 		return
@@ -163,7 +169,7 @@ func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, e
 	req, err := s.newUploaderRequest(partNumber)
 	res, err := client.Do(req)
 	if err != nil {
-		errChan <- err
+		errChan <- xerrors.Errorf("error occurs when partNumber: %d, req: %v caused by : %w", partNumber, req, err)
 	}
 	defer res.Body.Close()
 	etag := res.Header.Get("ETag")
