@@ -17,15 +17,6 @@ jobs:
       - name: Get dependencies
         run: go mod download
 
-      - name: go get lint command
-        run: go get -u golang.org/x/lint/golint
-
-      - name: buid golint
-        run: go install $GOPATH/pkg/mod/golang.org/x/lint/golint
-
-      - name: Go lint
-        run: golint -set_exit_status ./...
-
       - name: Go vet
         run: go vet ./...
 
