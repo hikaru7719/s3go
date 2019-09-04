@@ -20,18 +20,19 @@ var (
 	space       = regexp.MustCompile(`\s+`)
 )
 
-type SortSice []string
+// SortSlice implements sort.Sort interface
+type SortSlice []string
 
-func (s SortSice) Len() int           { return len(s) }
-func (s SortSice) Less(i, j int) bool { return s[i] < s[j] }
-func (s SortSice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s SortSlice) Len() int           { return len(s) }
+func (s SortSlice) Less(i, j int) bool { return s[i] < s[j] }
+func (s SortSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func sortMapKey(header map[string]string) []string {
 	strSlice := make([]string, 0, 10)
 	for key := range header {
 		strSlice = append(strSlice, strings.ToLower(key))
 	}
-	sort.Sort(SortSice(strSlice))
+	sort.Sort(SortSlice(strSlice))
 	return strSlice
 }
 
@@ -120,31 +121,36 @@ func signature(secret, date, region, service, stringToSign string) string {
 	return hex.EncodeToString(sig)
 }
 
-func authorization(secretAccessKeyId, credentialScope, signedHeaders, signature string) string {
-	authorization := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", secretAccessKeyId, credentialScope, signedHeaders, signature)
+func authorization(secretAccessKeyID, credentialScope, signedHeaders, signature string) string {
+	authorization := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", secretAccessKeyID, credentialScope, signedHeaders, signature)
 	return authorization
 }
 
+// AWSConfig is interface for mocking a config.Config struct
 type AWSConfig interface {
 	AWSAccessKeyID() string
 	AWSSecretAccessKey() string
 	AWSRegion() string
 }
 
+// Timer is interface for mocking a time.UTCTime struct
 type Timer interface {
 	Now() string
 	Date() string
 }
 
+// New function create Signature struct
 func New() *Signature {
 	return &Signature{timer: time.Default, config: config.Default}
 }
 
+// Signature is struct making AWS Signature for authorization header of AWS API call
 type Signature struct {
 	timer  Timer
 	config AWSConfig
 }
 
+// Authorization calculate signature
 func (s *Signature) Authorization(method, URL, payload string, header map[string]string) string {
 	request := canonicalRequest(method, URL, payload, header)
 	hashedRequest := hashSHA256(request)
