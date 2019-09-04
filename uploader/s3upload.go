@@ -71,7 +71,6 @@ func (s *S3Upload) Run() error {
 		return err
 	}
 	s.PutObject()
-	fmt.Println(s.etagMapper)
 	err = s.CompleteUploadObject()
 	if err != nil {
 		return err
@@ -141,9 +140,7 @@ func (s *S3Upload) PutObject() {
 	for n := range s.fileSlice {
 		wg.Add(1)
 		go func(n int) {
-			fmt.Println("start", n)
 			s.PutMultiPartObject(n+1, done, errChan)
-			fmt.Println("finish", n)
 			defer wg.Done()
 		}(n)
 	}
@@ -166,10 +163,7 @@ func (s *S3Upload) PutMultiPartObject(partNumber int, done <-chan interface{}, e
 	req, err := s.newUploaderRequest(partNumber)
 	res, err := client.Do(req)
 	if err != nil {
-		fmt.Println("occerd err sending channel", partNumber)
 		errChan <- err
-		fmt.Println("finish sending channel", partNumber)
-
 	}
 	defer res.Body.Close()
 	etag := res.Header.Get("ETag")
