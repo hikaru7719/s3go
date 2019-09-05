@@ -12,7 +12,7 @@ import (
 
 func TestInitialMultipartUpload(t *testing.T) {
 	sig := signature.New()
-	upload, _ := New("s3go-cli-test", "../testdata/earth.jpg", sig)
+	upload, _ := New(os.Getenv("AWS_S3_BUCKET_NAME"), "../testdata/earth.jpg", sig)
 	upload.InitialMultipartUpload()
 }
 
