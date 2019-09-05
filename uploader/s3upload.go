@@ -241,8 +241,8 @@ func (s *S3Upload) CompleteUploadObject() error {
 		return err
 	}
 	defer res.Body.Close()
-	byteBody, err := ioutil.ReadAll(res.Body)
-	fmt.Println(res.StatusCode, string(byteBody))
+	// byteBody, err := ioutil.ReadAll(res.Body)
+	// fmt.Println(res.StatusCode, string(byteBody))
 	return err
 }
 
