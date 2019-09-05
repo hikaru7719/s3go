@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,11 +33,13 @@ func New(bucketName, fileName string, signature Signature) (*S3Upload, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	objectName := filepath.Base(fileName)
 	mutex := new(sync.Mutex)
 	return &S3Upload{
 		host:       host,
 		bucketName: bucketName,
-		objectName: fileName,
+		objectName: objectName,
 		signature:  signature,
 		etagMapper: etagMapper,
 		file:       file,
